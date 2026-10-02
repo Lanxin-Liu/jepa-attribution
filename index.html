@@ -1,13 +1,16 @@
 <!doctype html>
 <html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Completion Attribution Across Native Layers</title>
 <style>
 :root{color-scheme:light;--ink:#1f2933;--muted:#52606d;--line:#d9e2ec;--accent:#2563eb}
 *{box-sizing:border-box}body{max-width:1660px;margin:28px auto;padding:0 22px;font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink)}
-h1{font-size:28px;line-height:1.2;margin:0 0 8px}p{max-width:1120px}.lede{font-size:16px;margin:0 0 16px;color:#364152}.controls{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid var(--line);z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}.controls label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.controls select,.controls button{font:inherit;padding:6px 9px;border:1px solid #bcccdc;border-radius:5px;background:#fff;color:inherit}.controls button{cursor:pointer;color:#fff;background:var(--accent);border-color:var(--accent)}.controls button:hover{background:#1d4ed8}.note{color:var(--muted);font-size:14px}.status{font-variant-numeric:tabular-nums;color:#334e68;margin:14px 0 4px}canvas{display:block;width:100%;height:auto;border:1px solid var(--line);background:#fff}
+h1{font-size:28px;line-height:1.2;margin:0 0 8px}p{max-width:1120px}.lede{font-size:16px;margin:0 0 16px;color:#364152}.controls{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid var(--line);z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}.controls label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.controls select,.controls button{font:inherit;padding:6px 9px;border:1px solid #bcccdc;border-radius:5px;background:#fff;color:inherit}.controls button{cursor:pointer;color:#fff;background:var(--accent);border-color:var(--accent)}.controls button:hover{background:#1d4ed8}.note{color:var(--muted);font-size:14px}.status{font-variant-numeric:tabular-nums;color:#334e68;margin:14px 0 4px}canvas{display:block;width:100%;height:auto;border:1px solid var(--line);background:#fff}.preview{margin-top:24px}.preview[hidden]{display:none}.preview img{display:block;width:100%;height:auto;border:1px solid var(--line);background:#fff}
 </style>
+</head>
+<body>
 <h1>How one final completion target is attributed across native layers</h1>
 <p class="lede">Frozen V-JEPA is evaluated with one fixed target: the negative L1 score on the hidden target tokens. Switch between the 12 predictor blocks and the 24 encoder blocks to inspect where the same score receives positive attribution.</p>
 <div class="controls">
@@ -16,42 +19,58 @@ h1{font-size:28px;line-height:1.2;margin:0 0 8px}p{max-width:1120px}.lede{font-s
   <label>Branch <select id="branch"><option value="predictor">Predictor (12 blocks)</option><option value="encoder">Encoder (24 blocks)</option></select></label>
   <label>View <select id="view"><option value="all">All time bins x all layers</option><option value="focus">One time bin x all layers</option></select></label>
   <label>Time <select id="time"></select></label>
-  <button id="download" type="button">Download PNG</button>
+  <button id="show" type="button">Show PNG</button>
 </div>
 <p id="status" class="status"></p>
 <p class="note">Each layer is normalized independently over its eight time bins, so brightness is a spatial distribution within a layer, not a cross-layer importance score. Gray cells are hidden target tokens. Predictor maps show visible-key attention-branch attribution; encoder maps show visible-token attribution from all encoder queries.</p>
 <canvas id="canvas"></canvas>
-<script src="data.js"></script>
-<script src="encoder_data.js"></script>
+<section id="preview" class="preview" hidden><h2>PNG Preview</h2><img id="previewImage" alt="PNG preview of the current attribution view"></section>
 <script>
-const A=window.ATLAS,E=window.ENCODER_ATLAS,$=id=>document.getElementById(id),TARGET='l1';
+let A,E;
+const refs={},$=id=>refs[id]||(refs[id]=document.getElementById(id)),TARGET='l1';
 const MASK_LABELS={temporal_front:'Hide frames 1-2',temporal_middle:'Hide frames 7-8',temporal_back:'Hide frames 15-16',spatial_block:'Continuous spatial mask',spatial_scattered:'Scattered spatial mask'};
 let generation=0;
 function options(id,values,labels){$(id).replaceChildren(...values.map((value,i)=>{const option=document.createElement('option');option.value=value;option.textContent=(labels||values)[i];return option}))}
-options('scene',A.scenes);
-options('mask',A.masks,A.masks.map(mask=>MASK_LABELS[mask]));
-options('time',[0,1,2,3,4,5,6,7],['Frames 1-2','Frames 3-4','Frames 5-6','Frames 7-8','Frames 9-10','Frames 11-12','Frames 13-14','Frames 15-16']);
-$('#mask').value='temporal_back';$('#time').value='6';
+function init(){
+  const selects=document.querySelectorAll('.controls select');
+  refs.scene=selects[0];refs.mask=selects[1];refs.branch=selects[2];refs.view=selects[3];refs.time=selects[4];
+  refs.status=document.querySelector('.status');refs.canvas=document.querySelector('canvas');refs.show=document.querySelector('.controls button');refs.preview=document.querySelector('.preview');refs.previewImage=document.querySelector('.preview img');
+  const sceneSelect=refs.scene,maskSelect=refs.mask,branchSelect=refs.branch,viewSelect=refs.view,timeSelect=refs.time,statusEl=refs.status,canvasEl=refs.canvas,showButton=refs.show,previewEl=refs.preview,previewImageEl=refs.previewImage;
+  options('scene',A.scenes);
+  options('mask',A.masks,A.masks.map(mask=>MASK_LABELS[mask]));
+  options('time',[0,1,2,3,4,5,6,7],['Frames 1-2','Frames 3-4','Frames 5-6','Frames 7-8','Frames 9-10','Frames 11-12','Frames 13-14','Frames 15-16']);
+  maskSelect.value='temporal_back';timeSelect.value='6';
 function draw(){
-  const gen=++generation,scene=$('#scene').value,mask=$('#mask').value,branch=$('#branch').value,focus=$('#view').value==='focus',time=Number($('#time').value),stem=scene+'__'+mask;
+  document.body.dataset.drawState='entered';
+  const gen=++generation,scene=sceneSelect.value,mask=maskSelect.value,branch=branchSelect.value,focus=viewSelect.value==='focus',time=Number(timeSelect.value),stem=scene+'__'+mask;
   const d=A.cases[stem], ed=E.cases[stem], encoder=branch==='encoder', atlas=encoder?ed:d, layerCount=encoder?E.layers:12;
-  if(!atlas){$('#status').textContent='Encoder data is unavailable for '+stem+'.';return}
-  const image=new Image();image.onload=()=>{if(gen!==generation)return;const canvas=$('#canvas'),ctx=canvas.getContext('2d'),size=192,gap=8,left=78,top=104,cols=focus?(encoder?6:4):8;
+  if(!atlas){statusEl.textContent='Attribution data is unavailable for '+stem+'.';return}
+  statusEl.textContent='Loading '+stem+'...';document.body.dataset.drawState='loading';
+  const image=new Image();
+  image.onerror=()=>{if(gen===generation)statusEl.textContent='Could not load input image: inputs/'+stem+'.jpg';};
+  image.onload=()=>{if(gen!==generation)return;try{const canvas=canvasEl,ctx=canvas.getContext('2d'),size=192,gap=8,left=78,top=104,cols=focus?(encoder?6:4):8;
+    if(!ctx)throw new Error('Canvas 2D context is unavailable');
     const rows=focus?Math.ceil(layerCount/cols):layerCount+1;canvas.width=left+cols*(size+gap)+18;canvas.height=top+rows*(size+(focus?44:gap))+80;
     ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.font='15px system-ui';ctx.fillStyle='#1f2933';
     ctx.fillText(scene+' | '+MASK_LABELS[mask]+' | Negative L1 | '+(encoder?'Encoder':'Predictor'),15,25);
-    ctx.fillText(focus?$('#time').selectedOptions[0].text:'All eight time bins',15,50);
+    ctx.fillText(focus?timeSelect.selectedOptions[0].text:'All eight time bins',15,50);
     function heatAt(layer,t,index){return encoder?atlas.values[layer][t][index]:atlas.values[layer][0][t][index]}
     function isZero(layer){return encoder?atlas.zero[layer]:atlas.zero[layer][0]}
     function panel(layer,t,x,y){ctx.drawImage(image,t*256,0,256,256,x,y,size,size);for(let i=0;i<256;i++){if(d.hidden[t][i])continue;const q=heatAt(layer,t,i),rgb=A.colors[q];ctx.fillStyle='rgba('+rgb.join(',')+','+(.82*q/255)+')';ctx.fillRect(x+(i%16)*size/16,y+Math.floor(i/16)*size/16,size/16+.2,size/16+.2)}if(isZero(layer)){ctx.fillStyle='#fff';ctx.fillRect(x,y+size/2-16,size,30);ctx.fillStyle='#333';ctx.fillText('Zero positive map',x+36,y+size/2+5)}}
     if(focus){for(let layer=0;layer<layerCount;layer++){const x=left+(layer%cols)*(size+gap),y=top+Math.floor(layer/cols)*(size+44);panel(layer,time,x,y);ctx.fillStyle='#1f2933';ctx.fillText((encoder?'E':'P')+(layer+1),x,y-10)}}
     else{for(let t=0;t<8;t++){ctx.fillStyle='#1f2933';ctx.fillText((2*t+1)+'-'+(2*t+2),left+t*(size+gap),85);ctx.drawImage(image,t*256,0,256,256,left+t*(size+gap),top,size,size)}ctx.fillText('Input',15,top+95);for(let layer=0;layer<layerCount;layer++){const y=top+(layer+1)*(size+gap);ctx.fillText((encoder?'E':'P')+(layer+1),18,y+95);for(let t=0;t<8;t++)panel(layer,t,left+t*(size+gap),y)}}
     ctx.fillStyle='#52606d';ctx.font='13px system-ui';ctx.fillText('Gray: hidden target cells. Heat: positive attribution to visible token slots.',15,canvas.height-25);
-    const baseline=encoder?ed.baseline:d.baseline[TARGET];$('#status').textContent=scene+' | '+MASK_LABELS[mask]+' | '+(encoder?'Encoder':'Predictor')+' | fixed negative L1 baseline: '+Number(baseline).toFixed(6);
-  };image.src='inputs/'+stem+'.jpg';
+    const baseline=encoder?ed.baseline:d.baseline[TARGET];statusEl.textContent=scene+' | '+MASK_LABELS[mask]+' | '+(encoder?'Encoder':'Predictor')+' | fixed negative L1 baseline: '+Number(baseline).toFixed(6);
+  }catch(error){statusEl.textContent='Render error: '+error.message;console.error(error);}};image.src='inputs/'+stem+'.jpg';
 }
-['scene','mask','branch','view','time'].forEach(id=>$(id).addEventListener('change',draw));
-$('#download').addEventListener('click',()=>{const a=document.createElement('a');a.download=$('#scene').value+'_'+$('#mask').value+'_'+$('#branch').value+'_negative_l1.png';a.href=$('#canvas').toDataURL('image/png');a.click()});
-draw();
+  [sceneSelect,maskSelect,branchSelect,viewSelect,timeSelect].forEach(control=>{if(control)control.addEventListener('change',draw)});
+  if(showButton)showButton.addEventListener('click',()=>{previewImageEl.src=canvasEl.toDataURL('image/png');previewEl.hidden=false;previewEl.scrollIntoView({behavior:'smooth',block:'start'})});
+  draw();
+}
+window.addEventListener('error',event=>{document.documentElement.dataset.error=(event.message||'script error')+' @'+event.lineno+':'+event.colno;});
+function loadScript(src){return new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=src;script.onload=resolve;script.onerror=()=>reject(new Error('Could not load '+src));document.head.appendChild(script)})}
+async function boot(){try{await Promise.all([loadScript('data.js'),loadScript('encoder_data.js')]);A=window.ATLAS;E=window.ENCODER_ATLAS;init()}catch(error){$('status').textContent=error.message}}
+window.addEventListener('load',boot,{once:true});
 </script>
+</body>
 </html>

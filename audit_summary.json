@@ -1,0 +1,78 @@
+{
+  "scenes": 14,
+  "cases": 70,
+  "main_maps": 3360,
+  "deletion_points": 7140,
+  "zero_maps": 1,
+  "max_old_p12_error": 1.4901161193847656e-08,
+  "max_hook_error": 0.0,
+  "max_hidden_error": 0.0,
+  "smoke_fd": [
+    {
+      "layer": 1,
+      "epsilon": 0.02,
+      "expected": 0.005313029978424311,
+      "observed": 0.0053129938780441255,
+      "relative_error": 6.794687839481442e-06
+    },
+    {
+      "layer": 1,
+      "epsilon": 0.01,
+      "expected": 0.005313029978424311,
+      "observed": 0.005313303497594957,
+      "relative_error": 5.148082577300175e-05
+    },
+    {
+      "layer": 1,
+      "epsilon": 0.005,
+      "expected": 0.005313029978424311,
+      "observed": 0.0053137312043094465,
+      "relative_error": 0.00013198229409270773
+    },
+    {
+      "layer": 6,
+      "epsilon": 0.02,
+      "expected": 0.002969085006043315,
+      "observed": 0.0029690487912292785,
+      "relative_error": 1.2197297808170408e-05
+    },
+    {
+      "layer": 6,
+      "epsilon": 0.01,
+      "expected": 0.002969085006043315,
+      "observed": 0.0029688527939331077,
+      "relative_error": 7.820999053059732e-05
+    },
+    {
+      "layer": 6,
+      "epsilon": 0.005,
+      "expected": 0.002969085006043315,
+      "observed": 0.0029694106636779516,
+      "relative_error": 0.00010968282618173878
+    },
+    {
+      "layer": 12,
+      "epsilon": 0.02,
+      "expected": 0.0006668926798738539,
+      "observed": 0.0006668889185809657,
+      "relative_error": 5.640027251418747e-06
+    },
+    {
+      "layer": 12,
+      "epsilon": 0.01,
+      "expected": 0.0006668926798738539,
+      "observed": 0.0006669520487695424,
+      "relative_error": 8.90231629168607e-05
+    },
+    {
+      "layer": 12,
+      "epsilon": 0.005,
+      "expected": 0.0006668926798738539,
+      "observed": 0.0006669140870940726,
+      "relative_error": 3.2099947809825605e-05
+    }
+  ],
+  "smoke_batch_single_score_error": 1.8851085081816876e-07,
+  "sparse_maps": 54,
+  "definition": "all-query attention-branch attribution to visible token slots"
+}
